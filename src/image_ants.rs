@@ -5,7 +5,7 @@ use std::thread;
 
 use super::image_arithmetic::color_distances;
 use super::image_arithmetic::{ArithmeticImage, Point};
-use image::{ImageBuffer, Luma, RgbImage};
+use image::{DynamicImage, ImageBuffer, Luma, Pixel, RgbImage, Rgba, RgbaImage};
 use rand;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
@@ -253,4 +253,32 @@ pub fn run_colony_step<CR: rand::Rng + SeedableRng + Send>(
     });
     // Finished combining partial results, can run global rules now.
     rules.global_update(rng, img, pheromones, &total_visited);
+}
+
+pub fn visualize_pheromones(pheromones: &[PheromoneImage]) -> RgbImage {
+    let colorized_pheromones: Vec<_> = pheromones
+        .to_vec()
+        .into_iter()
+        .enumerate()
+        .map(|(mut i, mut p)| {
+            i += 1;
+            p.normalize();
+            RgbaImage::from_fn(p.width(), p.height(), |x, y| {
+                Rgba([
+                    ((i * 98) % 255) as u8,
+                    ((i * 57) % 255) as u8,
+                    ((i * 157) % 255) as u8,
+                    (p.get_pixel(x, y).0[0] * 255.0) as u8,
+                ])
+            })
+        })
+        .collect();
+    let result = RgbaImage::from_fn(pheromones[0].width(), pheromones[0].height(), |x, y| {
+        let mut pixel = Rgba([0, 0, 0, 255]);
+        for pheromone in &colorized_pheromones {
+            pixel.blend(pheromone.get_pixel(x, y));
+        }
+        pixel
+    });
+    return DynamicImage::from(result).to_rgb8();
 }
