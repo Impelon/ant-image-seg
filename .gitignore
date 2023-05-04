@@ -2,6 +2,7 @@
 *.svg
 *.zip
 evaluator
+results
 training_images
 
 # Created by https://www.toptal.com/developers/gitignore/api/rust,linux,windows,macos
