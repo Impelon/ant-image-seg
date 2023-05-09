@@ -9,4 +9,5 @@ edition = "2021"
 cached = "0.43.0"
 image = "0.24.6"
 num-traits = "0.2.15"
+pareto_front = "1.0.1"
 rand = { version = "0.8.5", features = ["small_rng", "alloc"] }

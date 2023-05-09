@@ -2,15 +2,17 @@ use std::env;
 use std::fs;
 use std::path;
 use std::process;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use image::io::Reader as ImageReader;
+use pareto_front::ParetoFront;
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 
 mod image_ants;
 #[allow(dead_code)]
 mod image_arithmetic;
+mod pareto_pheromones;
 mod segment_generation;
 
 static PACKAGE_NAME: &str = env!("CARGO_PKG_NAME");
@@ -116,40 +118,59 @@ fn main() {
     let rgb_image = input_image.to_rgb8();
 
     let rules = segment_generation::create_rules(&rgb_image, parallelity, multi_objective);
-    let mut pheromones = image_ants::initialize_pheromones(&mut rng, &rgb_image, &rules);
 
-    for step in 0..100 {
-        image_ants::run_colony_step(&mut rng, &rgb_image, &rules, &mut pheromones);
-        if detailed {
-            image_ants::visualize_pheromones(&pheromones)
-                .save(&detailed_path.join(format!("{}-combined.png", step)))
-                .unwrap();
-            if pheromones.len() > 1 {
-                for (i, pheromone) in pheromones.iter().enumerate() {
-                    image_ants::visualize_pheromones(std::slice::from_ref(pheromone))
-                        .save(&detailed_path.join(format!("{}-pheromone{}.png", step, i)))
-                        .unwrap();
+    let start_time = Instant::now();
+    let mut attempts = ParetoFront::new();
+    loop {
+        let mut pheromones = image_ants::initialize_pheromones(&mut rng, &rgb_image, &rules);
+        for step in 0..50 {
+            image_ants::run_colony_step(&mut rng, &rgb_image, &rules, &mut pheromones);
+            if detailed {
+                image_ants::visualize_pheromones(&pheromones)
+                    .save(&detailed_path.join(format!("{}-step{}.png", attempts.len(), step)))
+                    .unwrap();
+                if pheromones.len() > 1 {
+                    for (i, pheromone) in pheromones.iter().enumerate() {
+                        image_ants::visualize_pheromones(std::slice::from_ref(pheromone))
+                            .save(&detailed_path.join(format!(
+                                "{}-step{}-pheromone{}.png",
+                                attempts.len(),
+                                step,
+                                i
+                            )))
+                            .unwrap();
+                    }
                 }
             }
+        }
+        attempts.push(pareto_pheromones::ParetoPheromones::new(&rgb_image, pheromones));
+        if soft_timeout == None || start_time.elapsed() >= soft_timeout.unwrap() {
+            break;
         }
     }
 
     let mut segments_path = results_path.join("type_1_segments");
     dirbuilder.create(&segments_path).unwrap();
-    segment_generation::contour_segmententation(&pheromones)
-        .save(&segments_path.join("segmented.png"))
-        .unwrap();
+    for (i, attempt) in attempts.iter().enumerate() {
+        segment_generation::contour_segmententation(&attempt.pheromones)
+            .save(&segments_path.join(format!("{}-{}.png", i, attempt.stat_info())))
+            .unwrap();
+    }
 
     segments_path = results_path.join("type_2_segments");
     dirbuilder.create(&segments_path).unwrap();
-    segment_generation::overlayed_contour_segmententation(&rgb_image, &pheromones)
-        .save(&segments_path.join("segmented.png"))
-        .unwrap();
+    for (i, attempt) in attempts.iter().enumerate() {
+        segment_generation::overlayed_contour_segmententation(&rgb_image, &attempt.pheromones)
+            .save(&segments_path.join(format!("{}-{}.png", i, attempt.stat_info())))
+            .unwrap();
+    }
 
     segments_path = results_path.join("type_3_segments");
     dirbuilder.create(&segments_path).unwrap();
-    segment_generation::colorized_region_segmententation(&rgb_image, &pheromones)
-        .0
-        .save(&segments_path.join("segmented.png"))
-        .unwrap();
+    for (i, attempt) in attempts.iter().enumerate() {
+        segment_generation::colorized_region_segmententation(&rgb_image, &attempt.pheromones)
+            .0
+            .save(&segments_path.join(format!("{}-{}.png", i, attempt.stat_info())))
+            .unwrap();
+    }
 }
