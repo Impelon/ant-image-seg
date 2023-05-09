@@ -31,6 +31,7 @@ fn usage(program_name: Option<&str>) {
     println!("Options:");
     println!("  -h, --help          print this help page instead of regular execution");
     println!("  -d, --detailed      export detailed pheromone images from each intermediate step");
+    println!("  -e, --eval-steps    consider each intermediate step for evaluation");
     println!("  -o, --objective M|S use either [M]ulti or [S]ingle objective optimization");
     println!("  -s, --seed SEED     use the given integer as a seed, otherwise use a random one");
     println!("  -t, --timeout SECS  stop generating new solutions after SECS seconds");
@@ -42,6 +43,7 @@ fn main() {
     let program_name: Option<&str> = Some(args[0].as_str());
 
     let mut detailed = false;
+    let mut evaluate_every_step = false;
     let mut rng = SmallRng::from_entropy();
     let mut soft_timeout = None;
     let mut parallelity = None;
@@ -73,6 +75,7 @@ fn main() {
                 s if !s.starts_with("-") => parameters.push(arg.clone()),
                 "-h" | "--help" => usage_and_exit(None),
                 "-d" | "--detailed" => detailed = true,
+                "-e" | "--eval-steps" | "--evaluate-steps" => evaluate_every_step = true,
                 "-o" | "--objective" => match get_parameter().to_lowercase().as_str() {
                     "m" | "multi" | "multiple" => multi_objective = true,
                     "s" | "single" => multi_objective = false,
@@ -142,8 +145,14 @@ fn main() {
                     }
                 }
             }
+            if evaluate_every_step {
+                attempts
+                    .push(pareto_pheromones::ParetoPheromones::new(&rgb_image, pheromones.clone()));
+            }
         }
-        attempts.push(pareto_pheromones::ParetoPheromones::new(&rgb_image, pheromones));
+        if !evaluate_every_step {
+            attempts.push(pareto_pheromones::ParetoPheromones::new(&rgb_image, pheromones));
+        }
         if soft_timeout == None || start_time.elapsed() >= soft_timeout.unwrap() {
             break;
         }
