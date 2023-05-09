@@ -123,35 +123,35 @@ fn main() {
     let rules = segment_generation::create_rules(&rgb_image, parallelity, multi_objective);
 
     let start_time = Instant::now();
-    let mut attempts = ParetoFront::new();
+    let mut solutions = ParetoFront::new();
+    let mut attempts = 0;
     loop {
+        attempts += 1;
         let mut pheromones = image_ants::initialize_pheromones(&mut rng, &rgb_image, &rules);
         for step in 0..50 {
             image_ants::run_colony_step(&mut rng, &rgb_image, &rules, &mut pheromones);
             if detailed {
                 image_ants::visualize_pheromones(&pheromones)
-                    .save(&detailed_path.join(format!("{}-step{}.png", attempts.len(), step)))
+                    .save(&detailed_path.join(format!("{}-step{}.png", attempts, step)))
                     .unwrap();
                 if pheromones.len() > 1 {
                     for (i, pheromone) in pheromones.iter().enumerate() {
                         image_ants::visualize_pheromones(std::slice::from_ref(pheromone))
-                            .save(&detailed_path.join(format!(
-                                "{}-step{}-pheromone{}.png",
-                                attempts.len(),
-                                step,
-                                i
-                            )))
+                            .save(
+                                &detailed_path
+                                    .join(format!("{}-step{}-pheromone{}.png", attempts, step, i)),
+                            )
                             .unwrap();
                     }
                 }
             }
             if evaluate_every_step {
-                attempts
+                solutions
                     .push(pareto_pheromones::ParetoPheromones::new(&rgb_image, pheromones.clone()));
             }
         }
         if !evaluate_every_step {
-            attempts.push(pareto_pheromones::ParetoPheromones::new(&rgb_image, pheromones));
+            solutions.push(pareto_pheromones::ParetoPheromones::new(&rgb_image, pheromones));
         }
         if soft_timeout == None || start_time.elapsed() >= soft_timeout.unwrap() {
             break;
@@ -160,30 +160,34 @@ fn main() {
 
     let mut segments_path = results_path.join("type_1_segments");
     dirbuilder.create(&segments_path).unwrap();
-    for (i, attempt) in attempts.iter().enumerate() {
-        segment_generation::contour_segmententation(&attempt.pheromones, 0.33)
-            .save(&segments_path.join(format!("{}-{}.png", i, attempt.stat_info())))
+    for (i, solution) in solutions.iter().enumerate() {
+        segment_generation::contour_segmententation(&solution.pheromones, 0.33)
+            .save(&segments_path.join(format!("{}-{}.png", i, solution.stat_info())))
             .unwrap();
     }
 
     segments_path = results_path.join("type_2_segments");
     dirbuilder.create(&segments_path).unwrap();
-    for (i, attempt) in attempts.iter().enumerate() {
+    for (i, solution) in solutions.iter().enumerate() {
         segment_generation::overlayed_contour_segmententation(
             &rgb_image,
-            &attempt.pheromones,
+            &solution.pheromones,
             0.33,
         )
-        .save(&segments_path.join(format!("{}-{}.png", i, attempt.stat_info())))
+        .save(&segments_path.join(format!("{}-{}.png", i, solution.stat_info())))
         .unwrap();
     }
 
     segments_path = results_path.join("type_3_segments");
     dirbuilder.create(&segments_path).unwrap();
-    for (i, attempt) in attempts.iter().enumerate() {
-        segment_generation::colorized_region_segmententation(&rgb_image, &attempt.pheromones, 0.33)
-            .0
-            .save(&segments_path.join(format!("{}-{}.png", i, attempt.stat_info())))
-            .unwrap();
+    for (i, solution) in solutions.iter().enumerate() {
+        segment_generation::colorized_region_segmententation(
+            &rgb_image,
+            &solution.pheromones,
+            0.33,
+        )
+        .0
+        .save(&segments_path.join(format!("{}-{}.png", i, solution.stat_info())))
+        .unwrap();
     }
 }
