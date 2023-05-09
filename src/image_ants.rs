@@ -12,26 +12,61 @@ use rand::SeedableRng;
 
 pub type PheromoneImage = ImageBuffer<Luma<f32>, Vec<f32>>;
 
-impl ArithmeticImage for PheromoneImage {
+impl ArithmeticImage<f32> for PheromoneImage {
+    fn max(&self) -> f32 {
+        return self.as_raw().iter().fold(0.0, |a: f32, &b| a.max(b));
+    }
+
+    fn min(&self) -> f32 {
+        return self.as_raw().iter().fold(f32::INFINITY, |a: f32, &b| a.min(b));
+    }
+
     fn normalize(&mut self) {
-        let max = self.as_raw().iter().fold(0.0, |a: f32, &b| a.max(b));
-        if max != 0.0 {
+        let max = self.max();
+        if max != 0.0 && max != 1.0 {
             for pixel in self.pixels_mut() {
                 (pixel.0)[0] /= max;
             }
         }
     }
 
-    fn binarize(&mut self) {
+    fn binarize(&mut self, threshold: f32) {
         self.normalize();
         for pixel in self.pixels_mut() {
-            (pixel.0)[0] = ((pixel.0)[0] > 0.5) as u8 as f32;
+            (pixel.0)[0] = ((pixel.0)[0] > threshold) as u8 as f32;
+        }
+    }
+
+    fn clamp(&mut self, threshold: f32) {
+        for pixel in self.pixels_mut() {
+            (pixel.0)[0] = threshold.min((pixel.0)[0]);
         }
     }
 
     fn add(&mut self, other: &Self) {
         for (x, y, pixel) in self.enumerate_pixels_mut() {
             (pixel.0)[0] += (other.get_pixel(x, y).0)[0];
+        }
+    }
+
+    fn add_scalar(&mut self, num: f32) {
+        for pixel in self.pixels_mut() {
+            (pixel.0)[0] += num;
+            if (pixel.0)[0] < 0.0 {
+                (pixel.0)[0] = 0.0;
+            }
+        }
+    }
+
+    fn mul(&mut self, other: &Self) {
+        for (x, y, pixel) in self.enumerate_pixels_mut() {
+            (pixel.0)[0] *= (other.get_pixel(x, y).0)[0];
+        }
+    }
+
+    fn mul_scalar(&mut self, num: f32) {
+        for pixel in self.pixels_mut() {
+            (pixel.0)[0] *= num;
         }
     }
 }
