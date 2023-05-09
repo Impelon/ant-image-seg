@@ -1,3 +1,4 @@
+use std::convert::{From, TryInto};
 use std::ops::{Add, Deref, DerefMut};
 
 use image::{ImageBuffer, Pixel, Rgb};
@@ -75,6 +76,28 @@ impl Point {
         C: DerefMut<Target = [P::Subpixel]>,
     {
         return img.get_pixel_mut(self.x.try_into().unwrap(), self.y.try_into().unwrap());
+    }
+
+    pub fn put_pixel<P, C>(self, img: &mut ImageBuffer<P, C>, pixel: P)
+    where
+        P: Pixel,
+        C: DerefMut<Target = [P::Subpixel]>,
+    {
+        return img.put_pixel(self.x.try_into().unwrap(), self.y.try_into().unwrap(), pixel);
+    }
+}
+
+impl From<(u32, u32)> for Point {
+    fn from(value: (u32, u32)) -> Self {
+        return Self { x: value.0 as i64, y: value.1 as i64 };
+    }
+}
+
+impl TryInto<(u32, u32)> for Point {
+    type Error = <u32 as TryFrom<i64>>::Error;
+
+    fn try_into(self) -> Result<(u32, u32), Self::Error> {
+        return Ok((self.x.try_into()?, self.y.try_into()?));
     }
 }
 
