@@ -11,12 +11,12 @@ use cached::proc_macro::cached;
 use image::{imageops, DynamicImage, Pixel, RgbImage, Rgba, RgbaImage};
 use rand;
 
-pub fn contour_segmententation(pheromones: &[PheromoneImage]) -> RgbImage {
+pub fn contour_segmententation(pheromones: &[PheromoneImage], threshold: f32) -> RgbImage {
     let mut segmentation = pheromones[0].clone();
     for pheromone in &pheromones[1..] {
         segmentation.add(pheromone);
     }
-    segmentation = extract_edges(&segmentation, 0.25);
+    segmentation = extract_edges(&segmentation, threshold);
     imageops::invert(&mut segmentation);
     // Add border to enforce closed segments.
     let w = segmentation.width();
@@ -28,9 +28,9 @@ pub fn contour_segmententation(pheromones: &[PheromoneImage]) -> RgbImage {
 }
 
 pub fn overlayed_contour_segmententation(
-    img: &RgbImage, pheromones: &[PheromoneImage],
+    img: &RgbImage, pheromones: &[PheromoneImage], threshold: f32,
 ) -> RgbImage {
-    let p = contour_segmententation(pheromones);
+    let p = contour_segmententation(pheromones, threshold);
     let colored_contour = RgbaImage::from_fn(p.width(), p.height(), |x, y| {
         Rgba([0, 255, 0, (255 - p.get_pixel(x, y).0[0]) / 3 * 2])
     });
@@ -41,14 +41,16 @@ pub fn overlayed_contour_segmententation(
 
 /// Cached calculation of segments from pheromones.
 // #[cached(size = 64, convert = r#"{ format!("{:p}", pheromones) }"#, key = "String", sync_writes = true)]
-pub fn region_segmententation(pheromones: &[PheromoneImage]) -> (RgbImage, Vec<HashSet<Point>>) {
-    return segments::extract_segments(&contour_segmententation(pheromones));
+pub fn region_segmententation(
+    pheromones: &[PheromoneImage], threshold: f32,
+) -> (RgbImage, Vec<HashSet<Point>>) {
+    return segments::extract_segments(&contour_segmententation(pheromones, threshold));
 }
 
 pub fn colorized_region_segmententation(
-    img: &RgbImage, pheromones: &[PheromoneImage],
+    img: &RgbImage, pheromones: &[PheromoneImage], threshold: f32,
 ) -> (RgbImage, Vec<HashSet<Point>>) {
-    let (mut segmented, segments) = region_segmententation(pheromones);
+    let (mut segmented, segments) = region_segmententation(pheromones, threshold);
     for points in &segments {
         let color = image_arithmetic::mean_color(&img, points);
         points.iter().for_each(|p| *p.get_pixel_mut(&mut segmented) = color);

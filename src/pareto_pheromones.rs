@@ -17,7 +17,7 @@ pub struct ParetoPheromones {
 
 impl ParetoPheromones {
     pub fn new(image: &RgbImage, pheromones: Vec<PheromoneImage>) -> Self {
-        let (_, segments) = region_segmententation(&pheromones);
+        let (_, segments) = region_segmententation(&pheromones, 0.33);
         let edge_value = segments::edge_value(image, &segments, &color_distances::euclidean);
         let connectivity_measure =
             segments::connectivity_measure(image, &segments, &color_distances::euclidean);

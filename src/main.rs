@@ -152,7 +152,7 @@ fn main() {
     let mut segments_path = results_path.join("type_1_segments");
     dirbuilder.create(&segments_path).unwrap();
     for (i, attempt) in attempts.iter().enumerate() {
-        segment_generation::contour_segmententation(&attempt.pheromones)
+        segment_generation::contour_segmententation(&attempt.pheromones, 0.33)
             .save(&segments_path.join(format!("{}-{}.png", i, attempt.stat_info())))
             .unwrap();
     }
@@ -160,15 +160,19 @@ fn main() {
     segments_path = results_path.join("type_2_segments");
     dirbuilder.create(&segments_path).unwrap();
     for (i, attempt) in attempts.iter().enumerate() {
-        segment_generation::overlayed_contour_segmententation(&rgb_image, &attempt.pheromones)
-            .save(&segments_path.join(format!("{}-{}.png", i, attempt.stat_info())))
-            .unwrap();
+        segment_generation::overlayed_contour_segmententation(
+            &rgb_image,
+            &attempt.pheromones,
+            0.33,
+        )
+        .save(&segments_path.join(format!("{}-{}.png", i, attempt.stat_info())))
+        .unwrap();
     }
 
     segments_path = results_path.join("type_3_segments");
     dirbuilder.create(&segments_path).unwrap();
     for (i, attempt) in attempts.iter().enumerate() {
-        segment_generation::colorized_region_segmententation(&rgb_image, &attempt.pheromones)
+        segment_generation::colorized_region_segmententation(&rgb_image, &attempt.pheromones, 0.33)
             .0
             .save(&segments_path.join(format!("{}-{}.png", i, attempt.stat_info())))
             .unwrap();
