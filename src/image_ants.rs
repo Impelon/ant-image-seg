@@ -77,6 +77,7 @@ pub type UpdateFunction<R> =
 pub struct AntColonyRules<CR: rand::Rng> {
     pub max_ant_steps: usize,
     pub ants_per_global_update: usize,
+    pub ants_return: bool,
     pub parallelity: usize,
     pub initialization_funcs: Vec<Option<Box<UpdateFunction<CR>>>>,
     pub local_update_funcs: Vec<Option<Box<UpdateFunction<CR>>>>,
@@ -85,7 +86,8 @@ pub struct AntColonyRules<CR: rand::Rng> {
 
 impl<CR: rand::Rng> AntColonyRules<CR> {
     pub fn new(
-        max_ant_steps: usize, ants_per_global_update: usize, parallelity: Option<usize>,
+        max_ant_steps: usize, ants_per_global_update: usize, ants_return: bool,
+        parallelity: Option<usize>,
         mut pheromone_functions: Vec<Vec<Option<Box<UpdateFunction<CR>>>>>,
     ) -> Result<Self, &'static str> {
         let mut pheromone_channels = 0;
@@ -117,6 +119,7 @@ impl<CR: rand::Rng> AntColonyRules<CR> {
         return Ok(Self {
             max_ant_steps,
             ants_per_global_update,
+            ants_return,
             parallelity,
             global_update_funcs: pheromone_functions.pop().unwrap(),
             local_update_funcs: pheromone_functions.pop().unwrap(),
@@ -185,9 +188,15 @@ impl Ant {
     ) {
         let corner_a = Point { x: 0, y: 0 };
         let corner_b = Point { x: (img.width() - 1) as i64, y: (img.height() - 1) as i64 };
+        let mut start = Some(self.position);
         for _ in 0..rules.max_ant_steps {
             if self.position == self.target {
-                break;
+                if rules.ants_return && start != None {
+                    self.target = start.unwrap();
+                    start = None;
+                } else {
+                    break;
+                }
             }
             self.visited.insert(self.position);
             let dist = self.target.euclidean_distance(&self.position);

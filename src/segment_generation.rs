@@ -66,6 +66,7 @@ pub fn create_rules<R: rand::Rng + 'static>(
         return AntColonyRules::new(
             max_steps,
             multi_objective::ants_per_global_update(),
+            true,
             parallelity,
             vec![
                 multi_objective::initialization_functions(),
@@ -78,6 +79,7 @@ pub fn create_rules<R: rand::Rng + 'static>(
         return AntColonyRules::new(
             max_steps,
             single_objective::ants_per_global_update(),
+            true,
             parallelity,
             vec![
                 single_objective::initialization_functions(),
