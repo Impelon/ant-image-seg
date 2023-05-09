@@ -4,8 +4,8 @@ use std::collections::HashSet;
 use std::thread;
 
 use super::image_arithmetic::color_distances;
-use super::image_arithmetic::{ArithmeticImage, Point};
-use image::{DynamicImage, ImageBuffer, Luma, Pixel, RgbImage, Rgba, RgbaImage};
+use super::image_arithmetic::{generate_color, ArithmeticImage, Point};
+use image::{DynamicImage, ImageBuffer, Luma, Pixel, Rgb, RgbImage, Rgba, RgbaImage};
 use rand;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
@@ -195,21 +195,23 @@ impl Ant {
                 if !newpos.is_within_rectangle(&corner_a, &corner_b) {
                     return 0.0;
                 }
-                let mut weight = 1.0;
-                // Lower probability to visit pixel more than once.
-                if self.visited.contains(&newpos) {
-                    weight = 0.01;
+                let mut weight = 0.1;
+                // Follow pheromones.
+                for pheromone in pheromones {
+                    let strength = newpos.get_pixel(pheromone).0[0];
+                    if strength > 0.0 {
+                        weight += strength;
+                    }
                 }
                 // Higher probability to walk towards target.
                 weight *= ((dist - self.target.euclidean_distance(&newpos)) as f32) + 3.0;
-                // weight *= (((dist - self.target.manhattan_distance(&newpos)) as f32) + 3.0).powi(5); // Too deterministic.
                 // Walk along paths of similar color.
                 let cdist =
                     color_distances::manhattan(self.position.get_pixel(img), newpos.get_pixel(img));
                 weight /= 128.0 + cdist as f32;
-                // Follow pheromones.
-                for pheromone in pheromones {
-                    weight *= newpos.get_pixel(pheromone).0[0] + 0.0001;
+                // Lower probability to visit pixel more than once.
+                if self.visited.contains(&newpos) {
+                    weight *= 0.01;
                 }
                 return weight;
             };
@@ -290,23 +292,28 @@ pub fn run_colony_step<CR: rand::Rng + SeedableRng + Send>(
     rules.global_update(rng, img, pheromones, &total_visited);
 }
 
+pub fn colorize_pheromone(pheromone: &PheromoneImage, color: Rgb<u8>, max_alpha: u8) -> RgbaImage {
+    let mut p = pheromone.clone();
+    p.normalize();
+    return RgbaImage::from_fn(p.width(), p.height(), |x, y| {
+        Rgba([
+            color.0[0],
+            color.0[1],
+            color.0[2],
+            (p.get_pixel(x, y).0[0] * (max_alpha as f32)) as u8,
+        ])
+    });
+}
+
 pub fn visualize_pheromones(pheromones: &[PheromoneImage]) -> RgbImage {
+    let peaks: Vec<_> = pheromones.iter().map(|p| p.max()).collect();
+    let total: f32 = peaks.iter().sum();
+    let intensities: Vec<_> = peaks.iter().map(|x| x / total).collect();
     let colorized_pheromones: Vec<_> = pheromones
         .to_vec()
         .into_iter()
         .enumerate()
-        .map(|(mut i, mut p)| {
-            i += 1;
-            p.normalize();
-            RgbaImage::from_fn(p.width(), p.height(), |x, y| {
-                Rgba([
-                    ((i * 98) % 255) as u8,
-                    ((i * 57) % 255) as u8,
-                    ((i * 157) % 255) as u8,
-                    (p.get_pixel(x, y).0[0] * 255.0) as u8,
-                ])
-            })
-        })
+        .map(|(i, p)| colorize_pheromone(&p, generate_color(i), (255.0 * intensities[i]) as u8))
         .collect();
     let result = RgbaImage::from_fn(pheromones[0].width(), pheromones[0].height(), |x, y| {
         let mut pixel = Rgba([0, 0, 0, 255]);
