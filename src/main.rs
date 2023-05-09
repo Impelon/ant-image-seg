@@ -136,6 +136,20 @@ fn main() {
 
     let mut segments_path = results_path.join("type_1_segments");
     dirbuilder.create(&segments_path).unwrap();
+    segment_generation::contour_segmententation(&pheromones)
+        .save(&segments_path.join("segmented.png"))
+        .unwrap();
+
     segments_path = results_path.join("type_2_segments");
     dirbuilder.create(&segments_path).unwrap();
+    segment_generation::overlayed_contour_segmententation(&rgb_image, &pheromones)
+        .save(&segments_path.join("segmented.png"))
+        .unwrap();
+
+    segments_path = results_path.join("type_3_segments");
+    dirbuilder.create(&segments_path).unwrap();
+    segment_generation::colorized_region_segmententation(&rgb_image, &pheromones)
+        .0
+        .save(&segments_path.join("segmented.png"))
+        .unwrap();
 }

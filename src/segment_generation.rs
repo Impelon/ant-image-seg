@@ -4,10 +4,57 @@ use std::collections::HashSet;
 use std::ops::Deref;
 
 use super::image_ants::{AntColonyRules, PheromoneImage, UpdateFunction};
-use super::image_arithmetic::color_distances;
-use super::image_arithmetic::{ArithmeticImage, Point};
-use image::RgbImage;
+use super::image_arithmetic;
+use super::image_arithmetic::{color_distances, segments, ArithmeticImage, Point};
+
+use cached::proc_macro::cached;
+use image::{imageops, DynamicImage, Pixel, RgbImage, Rgba, RgbaImage};
 use rand;
+
+pub fn contour_segmententation(pheromones: &[PheromoneImage]) -> RgbImage {
+    let mut segmentation = pheromones[0].clone();
+    for pheromone in &pheromones[1..] {
+        segmentation.add(pheromone);
+    }
+    segmentation = extract_edges(&segmentation, 0.25);
+    imageops::invert(&mut segmentation);
+    // Add border to enforce closed segments.
+    let w = segmentation.width();
+    let h = segmentation.height();
+    let cropped = DynamicImage::from(segmentation).crop_imm(1, 1, w - 2, h - 2).to_rgb8();
+    let mut canvas = RgbImage::new(w, h);
+    imageops::replace(&mut canvas, &cropped, 1, 1);
+    return canvas;
+}
+
+pub fn overlayed_contour_segmententation(
+    img: &RgbImage, pheromones: &[PheromoneImage],
+) -> RgbImage {
+    let p = contour_segmententation(pheromones);
+    let colored_contour = RgbaImage::from_fn(p.width(), p.height(), |x, y| {
+        Rgba([0, 255, 0, (255 - p.get_pixel(x, y).0[0]) / 3 * 2])
+    });
+    let mut canvas = DynamicImage::from(img.clone());
+    imageops::overlay(&mut canvas, &colored_contour, 0, 0);
+    return canvas.to_rgb8();
+}
+
+/// Cached calculation of segments from pheromones.
+// #[cached(size = 64, convert = r#"{ format!("{:p}", pheromones) }"#, key = "String", sync_writes = true)]
+pub fn region_segmententation(pheromones: &[PheromoneImage]) -> (RgbImage, Vec<HashSet<Point>>) {
+    return segments::extract_segments(&contour_segmententation(pheromones));
+}
+
+pub fn colorized_region_segmententation(
+    img: &RgbImage, pheromones: &[PheromoneImage],
+) -> (RgbImage, Vec<HashSet<Point>>) {
+    let (mut segmented, segments) = region_segmententation(pheromones);
+    for points in &segments {
+        let color = image_arithmetic::mean_color(&img, points);
+        points.iter().for_each(|p| *p.get_pixel_mut(&mut segmented) = color);
+    }
+    return (segmented, segments);
+}
 
 pub fn create_rules<R: rand::Rng + 'static>(
     img: &RgbImage, parallelity: Option<usize>, multi: bool,
@@ -58,6 +105,13 @@ where
     for point in points {
         point.get_pixel_mut(pheromone).0[0] *= multiplier;
     }
+}
+
+pub fn extract_edges(pheromone: &PheromoneImage, threshold: f32) -> PheromoneImage {
+    let mut result = pheromone.clone();
+    result.binarize(threshold);
+    imageops::invert(&mut result);
+    return imageops::filter3x3(&result, image_arithmetic::LAPLACE_KERNEL);
 }
 
 /// Combines the ant colony primitives with concrete rules
