@@ -5,10 +5,6 @@ use std::collections::HashSet;
 
 use image::{Rgb, RgbImage};
 
-fn mean(data: &[f64]) -> f64 {
-    return data.iter().sum::<f64>() / (data.len() as f64);
-}
-
 fn find_segment<'a>(
     segments: &'a Vec<HashSet<Point>>, point: &Point,
 ) -> Option<&'a HashSet<Point>> {
@@ -30,7 +26,7 @@ pub fn segment_deviation(
 pub fn overall_deviation(
     img: &RgbImage, segments: &Vec<HashSet<Point>>, dist: &ColorSpaceDistance,
 ) -> f64 {
-    return mean(&segments.iter().map(|s| segment_deviation(img, s, dist)).collect::<Vec<f64>>());
+    return segments.iter().map(|s| segment_deviation(img, s, dist)).sum();
 }
 
 pub fn local_edge_value(
