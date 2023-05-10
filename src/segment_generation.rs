@@ -62,30 +62,31 @@ pub fn create_rules<R: rand::Rng + 'static>(
     img: &RgbImage, parallelity: Option<usize>, multi: bool,
 ) -> AntColonyRules<R> {
     let max_steps = ((img.width() * img.height()) / 8) as usize;
+    let ants_return = true;
     if multi {
         return AntColonyRules::new(
             max_steps,
             multi_objective::ants_per_global_update(),
-            true,
+            ants_return,
             parallelity,
             vec![
                 multi_objective::initialization_functions(),
                 multi_objective::local_update_functions(),
-                multi_objective::global_update_functions(),
             ],
+            Some(Box::new(multi_objective::global)),
         )
         .unwrap();
     } else {
         return AntColonyRules::new(
             max_steps,
             single_objective::ants_per_global_update(),
-            true,
+            ants_return,
             parallelity,
             vec![
                 single_objective::initialization_functions(),
                 single_objective::local_update_functions(),
-                single_objective::global_update_functions(),
             ],
+            Some(Box::new(single_objective::global)),
         )
         .unwrap();
     }
@@ -126,60 +127,69 @@ pub mod multi_objective {
     pub fn local_edge_value<R: rand::Rng + 'static>(
         _rng: &mut R, _img: &RgbImage, _pheromone: &mut PheromoneImage, _visited: &HashSet<Point>,
     ) {
-        increase_phermomone(_pheromone, _visited, 1.0);
-        multiply_phermomone(_pheromone, _visited, 0.5);
-    }
-
-    pub fn global_edge_value<R: rand::Rng + 'static>(
-        _rng: &mut R, _img: &RgbImage, _pheromone: &mut PheromoneImage, _visited: &HashSet<Point>,
-    ) {
-        _pheromone.normalize();
+        increase_phermomone(_pheromone, _visited, 0.1);
     }
 
     pub fn local_connectivity_measure<R: rand::Rng + 'static>(
         _rng: &mut R, _img: &RgbImage, _pheromone: &mut PheromoneImage, _visited: &HashSet<Point>,
     ) {
-        increase_phermomone(_pheromone, _visited, 1.0);
-        multiply_phermomone(_pheromone, _visited, 0.1);
+        increase_phermomone(_pheromone, _visited, 0.01);
     }
 
-    pub fn global_connectivity_measure<R: rand::Rng + 'static>(
-        _rng: &mut R, _img: &RgbImage, _pheromone: &mut PheromoneImage, _visited: &HashSet<Point>,
-    ) {
-        _pheromone.normalize();
-    }
+    // pub fn local_overall_deviation<R: rand::Rng + 'static>(
+    //     _rng: &mut R, _img: &RgbImage, _pheromone: &mut PheromoneImage, _visited: &HashSet<Point>,
+    // ) {
+    // }
 
-    pub fn local_overall_deviation<R: rand::Rng + 'static>(
-        _rng: &mut R, _img: &RgbImage, _pheromone: &mut PheromoneImage, _visited: &HashSet<Point>,
+    pub fn global<R: rand::Rng + 'static>(
+        _rng: &mut R, _img: &RgbImage, _pheromones: &mut [PheromoneImage],
+        _visited: &HashSet<Point>,
     ) {
-        increase_phermomone(_pheromone, _visited, 1.0);
-    }
+        let (_, regions) = region_segmententation(_pheromones, 0.25);
+        let (edges, rest) = _pheromones.split_first_mut().unwrap();
+        let (connectivity, _) = rest.split_first_mut().unwrap();
+        // let (deviation, _) = rest.split_first_mut().unwrap();
 
-    pub fn global_overall_deviation<R: rand::Rng + 'static>(
-        _rng: &mut R, _img: &RgbImage, _pheromone: &mut PheromoneImage, _visited: &HashSet<Point>,
-    ) {
-        _pheromone.normalize();
+        // Edge Value.
+        let mut increase = edges.clone();
+        for point in _visited {
+            point.get_pixel_mut(&mut increase).apply(|_| {
+                segments::local_edge_value(_img, &regions, &color_distances::manhattan, point)
+                    as f32
+            });
+        }
+        increase.clamp(increase.max() / 8.0);
+        increase.normalize();
+        edges.add(&increase);
+        edges.normalize();
+        edges.mul_scalar(5.0);
+
+        // Connectivity Measure.
+        increase = connectivity.clone();
+        for point in _visited {
+            point
+                .get_pixel_mut(&mut increase)
+                .apply(|_| segments::local_connectivity_measure(_img, &regions, point) as f32);
+        }
+        increase.clamp(increase.max() / 8.0);
+        increase.normalize();
+        increase.mul_scalar(-1.0);
+        connectivity.add(&increase);
+        connectivity.add_scalar(1.0);
+        connectivity.normalize();
+        connectivity.mul_scalar(2.0);
     }
 
     pub fn initialization_functions<R: rand::Rng + 'static>() -> Vec<Option<Box<UpdateFunction<R>>>>
     {
-        return vec![None, None, None];
+        return vec![None, None];
     }
 
     pub fn local_update_functions<R: rand::Rng + 'static>() -> Vec<Option<Box<UpdateFunction<R>>>> {
         return vec![
             Some(Box::new(local_edge_value)),
             Some(Box::new(local_connectivity_measure)),
-            Some(Box::new(local_overall_deviation)),
-        ];
-    }
-
-    pub fn global_update_functions<R: rand::Rng + 'static>() -> Vec<Option<Box<UpdateFunction<R>>>>
-    {
-        return vec![
-            Some(Box::new(global_edge_value)),
-            Some(Box::new(global_connectivity_measure)),
-            Some(Box::new(global_overall_deviation)),
+            // Some(Box::new(local_overall_deviation)),
         ];
     }
 
@@ -201,22 +211,48 @@ pub mod single_objective {
     pub fn local<R: rand::Rng + 'static>(
         _rng: &mut R, _img: &RgbImage, _pheromone: &mut PheromoneImage, _visited: &HashSet<Point>,
     ) {
-        increase_phermomone(_pheromone, _visited, 1.0);
+        increase_phermomone(_pheromone, _visited, 0.1);
     }
 
     pub fn global<R: rand::Rng + 'static>(
-        _rng: &mut R, _img: &RgbImage, _pheromone: &mut PheromoneImage, _visited: &HashSet<Point>,
+        _rng: &mut R, _img: &RgbImage, _pheromones: &mut [PheromoneImage],
+        _visited: &HashSet<Point>,
     ) {
-        _pheromone.normalize();
+        let common_pheromone = &mut _pheromones[0];
+        let (_, regions) = region_segmententation(std::slice::from_ref(common_pheromone), 0.25);
+        let mut increase = common_pheromone.clone();
+        // Edge Value.
+        for point in _visited {
+            point.get_pixel_mut(&mut increase).apply(|_| {
+                segments::local_edge_value(_img, &regions, &color_distances::manhattan, point)
+                    as f32
+            });
+        }
+        increase.clamp(increase.max() / 8.0);
+        increase.normalize();
+        common_pheromone.add(&increase);
+        // Connectivity Measure.
+        increase = common_pheromone.clone();
+        for point in _visited {
+            point
+                .get_pixel_mut(&mut increase)
+                .apply(|_| segments::local_connectivity_measure(_img, &regions, point) as f32);
+        }
+        increase.clamp(increase.max() / 8.0);
+        increase.normalize();
+        // // Let connectivity become more important as edges start to from.
+        // let mut weight = segments::edge_value(_img, &regions, &color_distances::cosine) as f32;
+        // weight /= 2.0 * _img.len() as f32;
+        // weight += 0.5;
+        // // Slows down computation quite a bit. Not worth it.
+        increase.mul_scalar(-1.0);
+        common_pheromone.add(&increase);
+        common_pheromone.add_scalar(1.0);
+        common_pheromone.normalize();
     }
 
     pub fn local_update_functions<R: rand::Rng + 'static>() -> Vec<Option<Box<UpdateFunction<R>>>> {
         return vec![Some(Box::new(local))];
-    }
-
-    pub fn global_update_functions<R: rand::Rng + 'static>() -> Vec<Option<Box<UpdateFunction<R>>>>
-    {
-        return vec![Some(Box::new(global))];
     }
 
     pub fn ants_per_global_update() -> usize {

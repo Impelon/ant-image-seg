@@ -128,7 +128,7 @@ fn main() {
     loop {
         attempts += 1;
         let mut pheromones = image_ants::initialize_pheromones(&mut rng, &rgb_image, &rules);
-        for step in 0..50 {
+        for step in 0..75 {
             image_ants::run_colony_step(&mut rng, &rgb_image, &rules, &mut pheromones);
             if detailed {
                 image_ants::visualize_pheromones(&pheromones)

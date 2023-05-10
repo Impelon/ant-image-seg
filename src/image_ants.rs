@@ -73,6 +73,8 @@ impl ArithmeticImage<f32> for PheromoneImage {
 
 pub type UpdateFunction<R> =
     dyn Fn(&mut R, &RgbImage, &mut PheromoneImage, &HashSet<Point>) + Send + Sync;
+pub type GlobalUpdateFunction<R> =
+    dyn Fn(&mut R, &RgbImage, &mut [PheromoneImage], &HashSet<Point>) + Send + Sync;
 
 pub struct AntColonyRules<CR: rand::Rng> {
     pub max_ant_steps: usize,
@@ -81,7 +83,7 @@ pub struct AntColonyRules<CR: rand::Rng> {
     pub parallelity: usize,
     pub initialization_funcs: Vec<Option<Box<UpdateFunction<CR>>>>,
     pub local_update_funcs: Vec<Option<Box<UpdateFunction<CR>>>>,
-    pub global_update_funcs: Vec<Option<Box<UpdateFunction<CR>>>>,
+    pub global_update_func: Option<Box<GlobalUpdateFunction<CR>>>,
 }
 
 impl<CR: rand::Rng> AntColonyRules<CR> {
@@ -89,6 +91,7 @@ impl<CR: rand::Rng> AntColonyRules<CR> {
         max_ant_steps: usize, ants_per_global_update: usize, ants_return: bool,
         parallelity: Option<usize>,
         mut pheromone_functions: Vec<Vec<Option<Box<UpdateFunction<CR>>>>>,
+        global_update_func: Option<Box<GlobalUpdateFunction<CR>>>,
     ) -> Result<Self, &'static str> {
         let mut pheromone_channels = 0;
         if pheromone_functions.len() > 0 {
@@ -97,13 +100,13 @@ impl<CR: rand::Rng> AntColonyRules<CR> {
         if pheromone_channels <= 0 {
             return Err("no pheromones");
         }
-        if pheromone_functions.len() > 3 {
+        if pheromone_functions.len() > 2 {
             return Err("extra pheromone functions");
         }
         if pheromone_functions.iter().any(|x| x.len() != pheromone_channels) {
             return Err("unequal amount of pheromone functions");
         }
-        while pheromone_functions.len() < 3 {
+        while pheromone_functions.len() < 2 {
             let mut substitute = vec![];
             for _ in 0..pheromone_channels {
                 substitute.push(None);
@@ -121,7 +124,7 @@ impl<CR: rand::Rng> AntColonyRules<CR> {
             ants_per_global_update,
             ants_return,
             parallelity,
-            global_update_funcs: pheromone_functions.pop().unwrap(),
+            global_update_func,
             local_update_funcs: pheromone_functions.pop().unwrap(),
             initialization_funcs: pheromone_functions.pop().unwrap(),
         });
@@ -162,7 +165,9 @@ impl<CR: rand::Rng> AntColonyRules<CR> {
         &self, rng: &mut CR, img: &RgbImage, pheromones: &mut [PheromoneImage],
         visited: &HashSet<Point>,
     ) {
-        Self::apply(rng, img, pheromones, visited, &self.global_update_funcs);
+        if let Some(update) = &self.global_update_func {
+            update(rng, img, pheromones, visited);
+        }
     }
 }
 
