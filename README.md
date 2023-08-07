@@ -1,3 +1,21 @@
+# About
+
+This is an implementation of (non-semantic) image segmentation using an ant-colony multi-objective optimization algorithm.
+It is a proof of concept and quality varies highly depending on the characteritics of the image, but here is an example it performs decently well:
+
+<table>
+   <tr>
+      <td><img src="examples/stockholm.png"/></td>
+      <td><img src="examples/stockholm-results/type_2_segments/3-segs1122-e3.51E7-c5.06E4-d1.78E7.png"/></td>
+      <td><img src="examples/stockholm-results/type_3_segments/3-segs1122-e3.51E7-c5.06E4-d1.78E7.png"/></td>
+   </tr>
+   <tr>
+      <td>original image</td>
+      <td>overlayed segments</td>
+      <td>segmented image</td>
+   </tr>
+</table>
+
 # Setup
 
 1. Have the rust programming language installed: https://www.rust-lang.org/tools/install
@@ -36,7 +54,7 @@ I came up with my own approach:
 
 1. Randomly spawn ants. Give each a random position as a target.
 2. Each ant:
-  - Selects a neighbouring pixel and walks to it, leaving three pheromones behind.
+  - Selects a neighbouring pixel and walks to it, leaving multiple pheromones behind.
   - The selection is random and weighted according to:
     - the strength of pheromones
     - direction towards their target
